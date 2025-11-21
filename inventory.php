@@ -1,6 +1,11 @@
-<?php
+'<?php
 session_start();
 header('Content-Type: text/html; charset=utf-8');
+
+// Helper for safely escaping output in HTML attributes and content
+function h($s) {
+    return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
 
 $pdo = new PDO("mysql:host=localhost;dbname=inventory;charset=utf8mb4", "root", "", [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -8,15 +13,17 @@ $pdo = new PDO("mysql:host=localhost;dbname=inventory;charset=utf8mb4", "root", 
 ]);
 
 /* ==================== SAVE EDIT ==================== */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save') {
-    $id      = (int)$_POST['id'];
-    $stocks  = (float)$_POST['stocks'];
-    $expiry  = $_POST['expiry'] ?: null;
-    $barcode = trim($_POST['barcode']) ?: null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['action'] ?? '') === 'save')) {
+    // use null coalescing to avoid undefined index notices
+    $id      = (int)($_POST['id'] ?? 0);
+    $stocks  = (float)($_POST['stocks'] ?? 0);
+    $expiry  = $_POST['expiry'] ?? null;
+    $barcode = trim((string)($_POST['barcode'] ?? '')) ?: null;
 
     $stmt = $pdo->prepare("UPDATE inventory SET stocks = ?, expiry_date = ?, barcode = ? WHERE inventory_id = ?");
     $stmt->execute([$stocks, $expiry, $barcode, $id]);
 
+    header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => true]);
     exit;
 }
@@ -27,17 +34,11 @@ $pest_control_ingredients = ['Lambda-Cyhalothrin', 'Beta-Cyfluthrin', 'Cypermeth
 
 $month = date('n');
 $rotation_period = floor(($month - 1) / 3);
-$quarters = ["Jan - Mar", "Apr - Jun", "Jul - Sep", "Oct - Dec"];
+$quarters = ["Jan - Mar", "Apr - Jun", "Jul - Sep", "Oct - Dec"]; 
 $current_period = $quarters[$rotation_period] . " " . date('Y');
 
 /* ==================== INVENTORY ==================== */
-$inventory = $pdo->query("
-    SELECT i.inventory_id, s.service_name, a.name AS active_ingredient, i.stocks, i.expiry_date, i.barcode
-    FROM inventory i
-    JOIN services s ON i.service_id = s.service_id
-    LEFT JOIN active_ingredients a ON i.ai_id = a.ai_id
-    ORDER BY a.name, i.expiry_date
-")->fetchAll();
+$inventory = $pdo->query("\n    SELECT i.inventory_id, s.service_name, a.name AS active_ingredient, i.stocks, i.expiry_date, i.barcode\n    FROM inventory i\n    JOIN services s ON i.service_id = s.service_id\n    LEFT JOIN active_ingredients a ON i.ai_id = a.ai_id\n    ORDER BY a.name, i.expiry_date\n")->fetchAll();
 
 /* ==================== CURRENT CHEMICALS ==================== */
 $termite_items = array_filter($inventory, fn($i)=>in_array(trim($i['active_ingredient'] ?? ''), $termite_ingredients));
@@ -100,8 +101,7 @@ $alert_count = count($low_stock_items);
             text-align: center;
         }
         .header-wave::before {
-            content: '';
-            position: absolute;
+            content: '';\n            position: absolute;
             bottom: -30px;
             left: 0;
             width: 100%;
@@ -258,7 +258,7 @@ $alert_count = count($low_stock_items);
                 <i class="bi bi-shield-bug"></i> PEST CONTROL
             </h1>
             <p class="lead mb-0 mt-2 opacity-90">Smart Rotation Dashboard</p>
-            <div class="rotate-badge">Q<?= $rotation_period + 1 ?> • <?= $current_period ?></div>
+            <div class="rotate-badge">Q<?= (int)$rotation_period + 1 ?> • <?= h($current_period) ?></div>
         </div>
 
         <div class="p-5">
@@ -275,9 +275,9 @@ $alert_count = count($low_stock_items);
                     ?>
                     <div class="col-lg-3 col-md-4 col-6">
                         <div class="d-flex align-items-center gap-3 p-3 bg-white rounded-3 shadow-sm">
-                            <i class="bi <?= $icon ?> text-<?= $color ?> fs-3"></i>
+                            <i class="bi <?= h($icon) ?> text-<?= h($color) ?> fs-3"></i>
                             <div>
-                                <div class="fw-bold small text-dark"><?= htmlspecialchars($item['active_ingredient'] ?: $item['service_name']) ?></div>
+                                <div class="fw-bold small text-dark"><?= h($item['active_ingredient'] ?: $item['service_name']) ?></div>
                                 <div class="text-muted small"><?= number_format($stock,1) ?> bottle<?= $stock==1?'':'s' ?></div>
                             </div>
                         </div>
@@ -293,7 +293,7 @@ $alert_count = count($low_stock_items);
                     <div class="chemical-card text-center p-5 border-4 border-success border-start">
                         <i class="bi bi-bug chemical-icon text-success mb-3"></i>
                         <h4 class="text-success">TERMITE CONTROL</h4>
-                        <h2 class="fw-black text-dark"><?= htmlspecialchars(ucwords(strtolower($current_termite))) ?></h2>
+                        <h2 class="fw-black text-dark"><?= h(ucwords(strtolower($current_termite))) ?></h2>
                         <span class="stock-chip bg-success text-white mt-3">
                             <i class="bi bi-check2-circle"></i> ACTIVE THIS QUARTER
                         </span>
@@ -303,7 +303,7 @@ $alert_count = count($low_stock_items);
                     <div class="chemical-card text-center p-5 border-4 border-primary border-start">
                         <i class="bi bi-flower2 chemical-icon text-primary mb-3"></i>
                         <h4 class="text-primary">GENERAL PEST</h4>
-                        <h2 class="fw-black text-dark"><?= htmlspecialchars(ucwords(strtolower($current_pest))) ?></h2>
+                        <h2 class="fw-black text-dark"><?= h(ucwords(strtolower($current_pest))) ?></h2>
                         <span class="stock-chip bg-primary text-white mt-3">
                             <i class="bi bi-check2-circle"></i> ACTIVE THIS QUARTER
                         </span>
@@ -343,8 +343,8 @@ $alert_count = count($low_stock_items);
                 $ingredient = ucwords(strtolower($i['active_ingredient'] ?? ''));
             ?>
             <tr class="<?= $is_expired || $stock<=0 ? 'table-danger' : ($stock<10 ? 'table-warning' : '') ?>">
-                <td class="fw-semibold"><?= htmlspecialchars($i['service_name']) ?></td>
-                <td><?= htmlspecialchars($ingredient ?: '—') ?></td>
+                <td class="fw-semibold"><?= h($i['service_name']) ?></td>
+                <td><?= h($ingredient ?: '—') ?></td>
                 <td class="text-center">
                     <?= number_format($stock,1) ?>
                     <?php if($stock<=0): ?>
@@ -356,14 +356,14 @@ $alert_count = count($low_stock_items);
                     <?php endif; ?>
                 </td>
                 <td class="text-center">
-                    <?= $exp_display ?: '—' ?>
+                    <?= h($exp_display ?: '—') ?>
                     <?php if($is_expired): ?>
                         <span class="badge bg-danger ms-2">EXPIRED</span>
                     <?php elseif($near_exp): ?>
                         <span class="badge bg-warning text-dark ms-2">NEAR EXP</span>
                     <?php endif; ?>
                 </td>
-                <td><code><?= htmlspecialchars($i['barcode'] ?? '—') ?></code></td>
+                <td><code><?= h($i['barcode'] ?? '—') ?></code></td>
                 <td class="text-center">
                     <?php if($is_expired || $stock<=0): ?>
                         <i class="bi bi-x-circle-fill text-danger fs-4"></i>
@@ -376,17 +376,17 @@ $alert_count = count($low_stock_items);
                 <td class="text-center">
                     <div class="btn-group" role="group">
                         <button class="btn btn-outline-success btn-sm edit-btn"
-                            data-id="<?= $i['inventory_id'] ?>"
-                            data-service="<?= htmlspecialchars($i['service_name']) ?>"
-                            data-ingredient="<?= htmlspecialchars($ingredient) ?>"
-                            data-stocks="<?= $stock ?>"
-                            data-expiry="<?= $exp_display ?>"
-                            data-barcode="<?= htmlspecialchars($i['barcode'] ?? '') ?>">
+                            data-id="<?= (int)$i['inventory_id'] ?>"
+                            data-service="<?= h($i['service_name']) ?>"
+                            data-ingredient="<?= h($ingredient) ?>"
+                            data-stocks="<?= h($stock) ?>"
+                            data-expiry="<?= h($exp_display) ?>"
+                            data-barcode="<?= h($i['barcode'] ?? '') ?>">
                             <i class="bi bi-pencil-square"></i>
                         </button>
                         <?php if (!empty($i['barcode'])): ?>
                         <button class="btn btn-outline-primary btn-sm print-btn"
-                            onclick="window.open('print_label.php?id=<?= $i['inventory_id'] ?>&copy=1','_blank')">
+                            onclick="window.open('print_label.php?id=<?= (int)$i['inventory_id'] ?>&copy=1','_blank')">
                             <i class="bi bi-printer"></i>
                         </button>
                         <?php endif; ?>
@@ -568,4 +568,4 @@ $alert_count = count($low_stock_items);
   setTimeout(() => location.reload(), 5*60*1000);
 </script>
 </body>
-</html>
+</html>'
