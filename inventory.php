@@ -1,4 +1,4 @@
-'<?php
+<?php
 session_start();
 header('Content-Type: text/html; charset=utf-8');
 
@@ -38,7 +38,13 @@ $quarters = ["Jan - Mar", "Apr - Jun", "Jul - Sep", "Oct - Dec"];
 $current_period = $quarters[$rotation_period] . " " . date('Y');
 
 /* ==================== INVENTORY ==================== */
-$inventory = $pdo->query("\n    SELECT i.inventory_id, s.service_name, a.name AS active_ingredient, i.stocks, i.expiry_date, i.barcode\n    FROM inventory i\n    JOIN services s ON i.service_id = s.service_id\n    LEFT JOIN active_ingredients a ON i.ai_id = a.ai_id\n    ORDER BY a.name, i.expiry_date\n")->fetchAll();
+$inventory = $pdo->query("
+    SELECT i.inventory_id, s.service_name, a.name AS active_ingredient, i.stocks, i.expiry_date, i.barcode
+    FROM inventory i
+    JOIN services s ON i.service_id = s.service_id
+    LEFT JOIN active_ingredients a ON i.ai_id = a.ai_id
+    ORDER BY a.name, i.expiry_date
+")->fetchAll();
 
 /* ==================== CURRENT CHEMICALS ==================== */
 $termite_items = array_filter($inventory, fn($i)=>in_array(trim($i['active_ingredient'] ?? ''), $termite_ingredients));
@@ -101,7 +107,8 @@ $alert_count = count($low_stock_items);
             text-align: center;
         }
         .header-wave::before {
-            content: '';\n            position: absolute;
+            content: '';
+            position: absolute;
             bottom: -30px;
             left: 0;
             width: 100%;
@@ -568,4 +575,4 @@ $alert_count = count($low_stock_items);
   setTimeout(() => location.reload(), 5*60*1000);
 </script>
 </body>
-</html>'
+</html>
